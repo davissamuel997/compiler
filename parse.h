@@ -639,6 +639,7 @@ void error(int err_id)
 void foo() {
     printf("hello world\n");
     printf("yo world\n");
+    printf("hola world\n");
 }
 
 #endif
