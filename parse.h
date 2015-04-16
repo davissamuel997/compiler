@@ -636,6 +636,8 @@ void error(int err_id)
     }
 }
 
-// this is a comment for test
+void foo() {
+    printf("hello world\n");
+}
 
 #endif
