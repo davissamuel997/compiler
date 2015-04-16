@@ -1,0 +1,40 @@
+/*
+University of Central Florida.
+COP 3402 System Software.
+Summer 2014.
+Author: Edward Aymerich.
+
+Simple PL/0 program to test if a given year is a leap year or not.
+Input: a year to test.
+Output: 1 if the entered year is a leap year, 0 otherwise.
+*/
+const TRUE=1, FALSE=0, DA=4, DB=100, DC=400;
+var year, res, condA, condB, condC;
+begin 
+	condA := FALSE;
+	condB := FALSE;
+	condC := FALSE;
+	read year;
+	res := year / DA;
+	if res*DA = year then begin
+		condA := TRUE;
+	end;
+	res := year / DB;
+	if res*DB = year then begin
+		condB := TRUE;
+	end;
+	res := year / DC;
+	if res*DC = year then begin
+		condC := TRUE;
+	end;
+	res := FALSE;
+	if condA = TRUE then begin
+		if condB = FALSE then begin
+			res := TRUE;
+		end;
+		if condC = TRUE then begin
+			res := TRUE;
+		end;
+	end;
+	write res;
+end.

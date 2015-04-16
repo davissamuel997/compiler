@@ -1,0 +1,7 @@
+var x, y;
+begin
+    y := 3; /* This
+       is a comment */
+    x := 60 / y;
+    write x;
+end.

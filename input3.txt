@@ -1,0 +1,23 @@
+const F1=1, F2=1;
+var n, a, b, c;
+begin
+  read n;
+  if n < 2 then
+  begin
+    a := F1;
+  end;
+  if n >= 2 then
+  begin
+    n := n - 2;
+    a := F2;
+    b := F1;
+    while n > 0 do
+    begin
+      c := a;
+      a := a + b;
+      b := c;
+      n := n - 1;
+    end;
+  end;
+  write a;
+end.
