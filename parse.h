@@ -51,11 +51,12 @@ void ifBlock();
 void whileBlock();
 
 // Helpers
-int relationalOperator();
+int isValidRelationalOperator();
 void writeMCode();
 int getNumber();
 char* getIdenName();
 int getLexLevel();
+int mapOPRCode();
 
 // Parse the lexem list file
 void parse()
@@ -296,14 +297,14 @@ void condition()
     {
         expression();
 
-        if (!relationalOperator())
+        if (!isValidRelationalOperator())
             error(20);
         
         relOperator = token;
 
         getToken();
         expression();
-        gen(OPR, 0, relOperator);
+        gen(OPR, 0, mapOPRCode(relOperator));
     }
 }
 
@@ -420,7 +421,7 @@ char* getIdenName()
     return str;
 }
 
-int relationalOperator()
+int isValidRelationalOperator()
 {
 
     int relationalOperatorCheck = 0;
@@ -540,6 +541,30 @@ void ifBlock()
     statement();
 
     parseCode[codeIndex1].M = codeIndex;
+}
+
+// Maps PL0 Language Symbols to PM0 Machine Codes (Required due to inconsistencies in given tables)
+int mapOPRCode(int token)
+{
+    switch(token)
+    {
+        case EQL_SYM:
+            return EQL;
+        case NEQ_SYM:
+            return NEQ;
+        case LESS_SYM:
+            return LSS;
+        case LEQ_SYM:
+            return LEQ;
+        case GTR_SYM:
+            return GTR;
+        case GEQ_SYM:
+            return GEQ;
+        default:
+            // Just in case this is called with something other than relational operators
+            // This will cause the VM to error
+            return -99;
+    }
 }
 
 void error(int err_id)

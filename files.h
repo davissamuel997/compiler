@@ -1,7 +1,7 @@
 #ifndef FILES_H
 #define FILES_H
 
-#define INPUT_FILE "input2.txt"
+#define INPUT_FILE "input3.txt"
 #define CLEAN_FILE "cleaninput.txt"
 #define TABLE_FILE "lexemetable.txt"
 #define LIST_FILE  "lexemelist.txt"
