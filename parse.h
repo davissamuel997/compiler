@@ -20,7 +20,7 @@ int token;
 FILE *ifp;
 FILE *ofp;
 int codeIndex = 0;
-int nextSymbolIndex = 0;
+int symbolIndex = 0;
 int lexLevel = 0;
 
 // defined variable of type instruction struct that holds are input code
@@ -49,8 +49,6 @@ void error(int err_id);
 void enter(char* name, int typeID, int level, int address, int constValue);
 void gen(int OP, int L, int M);
 Symbol find(char* symbolName);
-void symbolType();
-void symbolLevel();
 void ifBlock();
 void whileBlock();
 
@@ -58,6 +56,7 @@ void whileBlock();
 int isValidRelationalOperator();
 void writeMCode();
 int mapOPRCode();
+int relativeSymbolLevel(int symbolLevel);
 
 // Parse the lexem list file
 void parse()
@@ -87,17 +86,18 @@ void program()
     block();
     if (token != PERIOD_SYM)
         error(9);
-
-    gen(OPR, 0, 0);
 }
 
 void block()
 {
-    int varCounter = 0, space = 3, tempJMP, tempSymbolIndex;
+    int varCounter = 0, space = 3, tempJMP, tempSymbolIndex, prevSymbolIndex;
     char symbolName[MAX_IDENTIFIERS_CHAR_LENGTH];
 
     // Increase lex level
-    //lexLevel++;
+    lexLevel++;
+    
+    // Store current symbolIndex for later
+    prevSymbolIndex = symbolIndex;
     
     // Gen JMP command and store the address of this gen for later modification
     tempJMP = codeIndex;
@@ -114,7 +114,7 @@ void block()
                 error(4);
 
             // Store the index of the symbol table and enter in constant
-            tempSymbolIndex = nextSymbolIndex;
+            tempSymbolIndex = symbolIndex;
             enter(getIdenName(), CONST_SYM, lexLevel, 0, 0);
             
             // Check next token is equal sign
@@ -174,6 +174,9 @@ void block()
         if (token != IDENT_SYM)
             error(6);
         
+        // Add procedure to symbol table
+        enter(getIdenName(), PROC_SYM, lexLevel, codeIndex, 0);
+        
         getToken();
         if (token != SEMICOLON_SYM)
             error(5);
@@ -197,8 +200,11 @@ void block()
     
     statement();
     
+    // Restore previous symbolIndex
+    symbolIndex = prevSymbolIndex;
+    
     // Decrease lexLevel
-    //lexLevel--;
+    lexLevel--;
 }
 
 void statement()
@@ -220,14 +226,28 @@ void statement()
         getToken();
         expression();
 
-        gen(STO, 0, foundSymbol.address);
+        gen(STO, relativeSymbolLevel(foundSymbol.level), foundSymbol.address);
     }
     
     else if (token == CALL_SYM)
     {
+        // Check for ident symbol
         getToken();
         if (token != IDENT_SYM)
             error(14);
+        
+        // Search symbol table for procedure
+        foundSymbol = find(getIdenName());
+        
+        if (foundSymbol.typeID == PROC_SYM)
+        {
+            gen(CAL, relativeSymbolLevel(foundSymbol.level), foundSymbol.address);
+        }
+        else
+        {
+            // Call must be followed by a procedure identifier
+            error(14);
+        }
         
         getToken();
     }
@@ -247,6 +267,8 @@ void statement()
         
         if (token != END_SYM)
             error(26);
+        
+        gen(OPR, 0, 0);
         
         getToken();
     }
@@ -276,7 +298,7 @@ void statement()
         }
         else if (foundSymbol.typeID == VAR_SYM)
         {
-            gen(LOD, 0, foundSymbol.address);
+            gen(LOD, relativeSymbolLevel(foundSymbol.level), foundSymbol.address);
         }
 
         gen(OUT, 0, 0);
@@ -294,7 +316,7 @@ void statement()
 
         gen(IN, 0, 0);
 
-        gen(STO, 0 , foundSymbol.address);
+        gen(STO, relativeSymbolLevel(foundSymbol.level) , foundSymbol.address);
 
         getToken();
     } 
@@ -396,7 +418,7 @@ void factor()
         }
         else if (foundSymbol.typeID == VAR_SYM)
         {
-            gen(LOD, 0, foundSymbol.address);
+            gen(LOD, relativeSymbolLevel(foundSymbol.level), foundSymbol.address);
         }
         
         getToken();
@@ -462,13 +484,13 @@ void enter(char* name, int typeID, int level, int address, int constValue) {
     if (address > MAX_STACK_HEIGHT)
         error(28);
 
-    symbolTable[nextSymbolIndex].name = name;
-    symbolTable[nextSymbolIndex].typeID = typeID;
-    symbolTable[nextSymbolIndex].level = level;
-    symbolTable[nextSymbolIndex].address = address;
-    symbolTable[nextSymbolIndex].constValue = constValue;
+    symbolTable[symbolIndex].name = name;
+    symbolTable[symbolIndex].typeID = typeID;
+    symbolTable[symbolIndex].level = level;
+    symbolTable[symbolIndex].address = address;
+    symbolTable[symbolIndex].constValue = constValue;
     
-    nextSymbolIndex++;
+    symbolIndex++;
 }
 
 void gen(int OP, int L, int M) {
@@ -489,7 +511,7 @@ Symbol find(char* symbolName) {
 
     int i;
 
-    for (i = (nextSymbolIndex - 1); i >= 0; i--) 
+    for (i = (symbolIndex - 1); i >= 0; i--) 
     {
         if (strcmp(symbolName, symbolTable[i].name) == 0)
         {
@@ -498,14 +520,6 @@ Symbol find(char* symbolName) {
     }
 
     error(11);
-}
-
-void symboltype() {
-
-}
-
-void symbollevel() {
-
 }
 
 int getNumber()
@@ -562,6 +576,11 @@ void ifBlock()
     statement();
 
     parseCode[codeIndex1].M = codeIndex;
+}
+
+int relativeSymbolLevel(int symbolLevel)
+{
+    return lexLevel - symbolLevel;
 }
 
 // Maps PL0 Language Symbols to PM0 Machine Codes (Required due to inconsistencies in given tables)
