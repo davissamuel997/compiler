@@ -1,0 +1,13 @@
+const z = 15;
+var x, y;
+begin
+	x := 2 * 2;
+    write x;
+	y := x - 1;
+    write y;
+	x := x / 2;
+    write x;
+	y := (z + 1) / (8 * 2);
+    write z;
+    write y;
+end.

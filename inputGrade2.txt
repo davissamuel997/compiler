@@ -1,0 +1,13 @@
+var a, b, c;
+begin
+	read a;
+	b := 10;
+	if a <= b then
+		c := a + b;
+	while a < b do
+		begin
+			a := a + 1;
+			c := c + 3;
+		end;
+	write c
+end.
