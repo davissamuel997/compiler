@@ -21,6 +21,7 @@ FILE *ifp;
 FILE *ofp;
 int codeIndex = 0;
 int nextSymbolIndex = 0;
+int lexLevel = 0;
 
 // defined variable of type instruction struct that holds are input code
 Instruction parseCode[MAX_CODE_LENGTH];
@@ -36,26 +37,27 @@ void expression();
 void term();
 void factor();
 
-// Tokens
+// Tokens & Lexemes
 void getToken();
+int getNumber();
+char* getIdenName();
+
 // Error catching
 void error(int err_id);
-// Emits
-void enter(char* name, int id, int level, int updatedStackPointer);
+
+// Code Generation
+void enter(char* name, int typeID, int level, int address, int constValue);
 void gen(int OP, int L, int M);
 Symbol find(char* symbolName);
 void symbolType();
 void symbolLevel();
-
 void ifBlock();
 void whileBlock();
 
 // Helpers
-int relationalOperator();
+int isValidRelationalOperator();
 void writeMCode();
-int getNumber();
-char* getIdenName();
-int getLexLevel();
+int mapOPRCode();
 
 // Parse the lexem list file
 void parse()
@@ -91,11 +93,16 @@ void program()
 
 void block()
 {
-    int varCounter = 0, stackPointer = 3, tempStackPointer, codeIndex1 = codeIndex;
+    int varCounter = 0, space = 3, tempJMP, tempSymbolIndex;
     char symbolName[MAX_IDENTIFIERS_CHAR_LENGTH];
 
-    gen(INC, 0, 0);
-
+    // Increase lex level
+    //lexLevel++;
+    
+    // Gen JMP command and store the address of this gen for later modification
+    tempJMP = codeIndex;
+    gen(JMP, 0, 0);
+    
     // Check for constants
     if (token == CONST_SYM)
     {
@@ -106,9 +113,9 @@ void block()
             if (token != IDENT_SYM)
                 error(4);
 
-            tempStackPointer = stackPointer;
-
-            enter(getIdenName(), CONST_SYM, getLexLevel(), stackPointer++);
+            // Store the index of the symbol table and enter in constant
+            tempSymbolIndex = nextSymbolIndex;
+            enter(getIdenName(), CONST_SYM, lexLevel, 0, 0);
             
             // Check next token is equal sign
             getToken();
@@ -120,10 +127,8 @@ void block()
             if (token != NUM_SYM)
                 error(2);
 
-            varCounter++;
-
-            gen(LIT, 0, getNumber());
-            gen(STO, 0, tempStackPointer);
+            // Update the constant in symbol table with its value
+            symbolTable[tempSymbolIndex].constValue = getNumber();
             
             // Get next token and repeat loop if token is a comma
             getToken();
@@ -147,7 +152,7 @@ void block()
             if (token != IDENT_SYM)
                 error(4);
 
-            enter(getIdenName(), VAR_SYM, getLexLevel(), stackPointer++);
+            enter(getIdenName(), VAR_SYM, lexLevel, space + varCounter, 0);
 
             varCounter++;
             
@@ -183,10 +188,17 @@ void block()
         
         getToken();
     }
+
+    // Modify JMP with codeIndex after recursive call to potential blocks (subprocedures)
+    parseCode[tempJMP].M = codeIndex;
+
+    // Reserve stack space for block
+    gen(INC, 0, space + varCounter);
     
     statement();
-
-    parseCode[codeIndex1].M = stackPointer;
+    
+    // Decrease lexLevel
+    //lexLevel--;
 }
 
 void statement()
@@ -197,7 +209,7 @@ void statement()
     {
         foundSymbol = find(getIdenName());
 
-        if (foundSymbol.id == CONST_SYM)
+        if (foundSymbol.typeID == CONST_SYM)
             error(12);
 
         getToken();
@@ -208,7 +220,7 @@ void statement()
         getToken();
         expression();
 
-        gen(STO, 0, foundSymbol.stackPointer);
+        gen(STO, 0, foundSymbol.address);
     }
     
     else if (token == CALL_SYM)
@@ -258,7 +270,14 @@ void statement()
 
         foundSymbol = find(getIdenName());
 
-        gen(LOD, 0, foundSymbol.stackPointer);
+        if (foundSymbol.typeID == CONST_SYM)
+        {
+            gen(LIT,0,foundSymbol.constValue);
+        }
+        else if (foundSymbol.typeID == VAR_SYM)
+        {
+            gen(LOD, 0, foundSymbol.address);
+        }
 
         gen(OUT, 0, 0);
 
@@ -275,7 +294,7 @@ void statement()
 
         gen(IN, 0, 0);
 
-        gen(STO, 0 , foundSymbol.stackPointer);
+        gen(STO, 0 , foundSymbol.address);
 
         getToken();
     } 
@@ -296,14 +315,14 @@ void condition()
     {
         expression();
 
-        if (!relationalOperator())
+        if (!isValidRelationalOperator())
             error(20);
         
         relOperator = token;
 
         getToken();
         expression();
-        gen(OPR, 0, relOperator);
+        gen(OPR, 0, mapOPRCode(relOperator));
     }
 }
 
@@ -371,8 +390,15 @@ void factor()
     {   
         foundSymbol = find(getIdenName());
 
-        gen(LOD, 0, foundSymbol.stackPointer);
-
+        if (foundSymbol.typeID == CONST_SYM)
+        {
+            gen(LIT, 0, foundSymbol.constValue);
+        }
+        else if (foundSymbol.typeID == VAR_SYM)
+        {
+            gen(LOD, 0, foundSymbol.address);
+        }
+        
         getToken();
     }
 
@@ -420,7 +446,7 @@ char* getIdenName()
     return str;
 }
 
-int relationalOperator()
+int isValidRelationalOperator()
 {
 
     int relationalOperatorCheck = 0;
@@ -431,16 +457,17 @@ int relationalOperator()
     return relationalOperatorCheck;
 }
 
-void enter(char* name, int id, int level, int updatedStackPointer) {
+void enter(char* name, int typeID, int level, int address, int constValue) {
 
-    if (updatedStackPointer > MAX_STACK_HEIGHT)
+    if (address > MAX_STACK_HEIGHT)
         error(28);
 
     symbolTable[nextSymbolIndex].name = name;
-    symbolTable[nextSymbolIndex].id = id;
+    symbolTable[nextSymbolIndex].typeID = typeID;
     symbolTable[nextSymbolIndex].level = level;
-    symbolTable[nextSymbolIndex].stackPointer = updatedStackPointer;
-
+    symbolTable[nextSymbolIndex].address = address;
+    symbolTable[nextSymbolIndex].constValue = constValue;
+    
     nextSymbolIndex++;
 }
 
@@ -462,7 +489,7 @@ Symbol find(char* symbolName) {
 
     int i;
 
-    for (i = 0; i < nextSymbolIndex; i++) 
+    for (i = (nextSymbolIndex - 1); i >= 0; i--) 
     {
         if (strcmp(symbolName, symbolTable[i].name) == 0)
         {
@@ -489,11 +516,6 @@ int getNumber()
         fscanf(ifp, "%d", &num);
 
     return num;
-}
-
-int getLexLevel()
-{
-    return 0;
 }
 
 void whileBlock()
@@ -540,6 +562,30 @@ void ifBlock()
     statement();
 
     parseCode[codeIndex1].M = codeIndex;
+}
+
+// Maps PL0 Language Symbols to PM0 Machine Codes (Required due to inconsistencies in given tables)
+int mapOPRCode(int token)
+{
+    switch(token)
+    {
+        case EQL_SYM:
+            return EQL;
+        case NEQ_SYM:
+            return NEQ;
+        case LESS_SYM:
+            return LSS;
+        case LEQ_SYM:
+            return LEQ;
+        case GTR_SYM:
+            return GTR;
+        case GEQ_SYM:
+            return GEQ;
+        default:
+            // Just in case this is called with something other than relational operators
+            // This will cause the VM to error
+            return -99;
+    }
 }
 
 void error(int err_id)

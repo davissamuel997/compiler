@@ -22,9 +22,10 @@ typedef struct
 typedef struct
 {
     char *name;
-    int id;
+    int typeID;
     int level;
-    int stackPointer;
+    int address;
+    int constValue;
     
 } Symbol; 
     
